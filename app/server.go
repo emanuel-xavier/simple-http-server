@@ -127,7 +127,7 @@ func parseRequest(rBytes []byte) (*httpResquest, error) {
 				return nil, err
 			}
 
-			request.headers[key] = value
+			request.headers[strings.TrimSpace(key)] = strings.TrimSpace(value)
 
 		case bytes.Equal(line, []byte(CRLF)):
 			isParsingHeaders = true
@@ -174,6 +174,17 @@ func handleClient(conn net.Conn) {
 		if strings.Compare("/", r.path) == 0 {
 			response.status = 200
 			response.statusMsg = "OK"
+		} else if strings.Compare("/user-agent", (*r).path) == 0 {
+			userAgent, userAgentIsPresent := (*r).headers["User-Agent"]
+
+			if userAgentIsPresent {
+				response.status = 200
+				response.statusMsg = "OK"
+				response.body = []byte(userAgent)
+			} else {
+				response.status = 400
+			}
+
 		} else if strings.HasPrefix((*r).path, "/echo/") {
 			bodyContent := strings.Replace((*r).path, "/echo/", "", 1)
 			response.status = 200
