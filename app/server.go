@@ -27,6 +27,31 @@ func main() {
 	}
 }
 
+type httpResquest struct {
+	method      string
+	path        string
+	httpVersion string
+	host        string
+	headers     map[string]string
+	body        string
+}
+
+func newHttpRequest(rStr string) *httpResquest {
+	requestLine, rStr, found := strings.Cut(rStr, "\r\n")
+	if !found {
+		return nil
+	}
+
+	var r httpResquest
+
+	rLine := strings.Split(requestLine, " ")
+	r.method = rLine[0]
+	r.path = rLine[1]
+	r.httpVersion = rLine[2]
+
+	return &r
+}
+
 func handleClient(conn net.Conn) {
 	defer conn.Close()
 
@@ -37,12 +62,15 @@ func handleClient(conn net.Conn) {
 	}
 
 	msg := string(buffer[:n])
-	msg = strings.Trim(msg, " ")
-	msg = strings.Replace(msg, "\n", "", -1)
+	r := newHttpRequest(msg)
+	fmt.Println(r)
 
-	fmt.Printf("msg received (%d): %s\n", n, string(buffer[:n]))
-
-	response := "HTTP/1.1 200 OK\r\n\r\n"
+	var response string
+	if strings.Compare("/", r.path) == 0 {
+		response = "HTTP/1.1 200 OK\r\n\r\n"
+	} else {
+		response = "HTTP/1.1 404 Not Found\r\n\r\n"
+	}
 
 	fmt.Println("Sending response:\n", response)
 	_, err = conn.Write([]byte(response))
