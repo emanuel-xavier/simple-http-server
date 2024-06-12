@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"flag"
 	"fmt"
 	"net"
@@ -52,6 +54,21 @@ func isAValidEnconding(acceptEncoding []string) bool {
 		}
 	}
 	return false
+}
+
+func compressBytes(data []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	gzipWriter := gzip.NewWriter(&buf)
+
+	if _, err := gzipWriter.Write(data); err != nil {
+		return nil, err
+	}
+
+	if err := gzipWriter.Close(); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }
 
 func handleClient(conn net.Conn) {
@@ -125,16 +142,20 @@ func handleClient(conn net.Conn) {
 			}
 
 		case r.method == "GET" && strings.HasPrefix(r.path, "/echo/"):
-			encoding, encondingIsPresent := r.headers["accept-encoding"]
-			if encondingIsPresent && isAValidEnconding(strings.Split(encoding, ", ")) {
-				response.SetHeader("Content-Encoding", "gzip")
-			}
 			bodyContent := strings.Replace(r.path, "/echo/", "", 1)
 			bodyBytes := []byte(bodyContent)
+			encoding, encondingIsPresent := r.headers["accept-encoding"]
+			if encondingIsPresent && isAValidEnconding(strings.Split(encoding, ", ")) {
+				compressed, _ := compressBytes(bodyBytes)
+				response.SetBody(compressed)
+				response.SetHeader("Content-Encoding", "gzip")
+				response.SetHeader("Content-Length", strconv.Itoa(len(compressed)))
+			} else {
+				response.SetBody(bodyBytes)
+				response.SetHeader("Content-Length", strconv.Itoa(len(bodyBytes)))
+				response.SetHeader("Content-Type", "text/plain")
+			}
 			response.SetStatus(STATUS_OK)
-			response.SetBody(bodyBytes)
-			response.SetHeader("Content-Length", strconv.Itoa(len(bodyBytes)))
-			response.SetHeader("Content-Type", "text/plain")
 
 		default:
 			response.SetStatus(STATUS_NOT_FOUND)
