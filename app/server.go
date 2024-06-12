@@ -42,6 +42,18 @@ func main() {
 	}
 }
 
+func isAValidEnconding(acceptEncoding []string) bool {
+	valid := []string{"gzip"}
+	for _, v := range valid {
+		for _, e := range acceptEncoding {
+			if e == v {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func handleClient(conn net.Conn) {
 	defer conn.Close()
 
@@ -114,8 +126,8 @@ func handleClient(conn net.Conn) {
 
 		case r.method == "GET" && strings.HasPrefix(r.path, "/echo/"):
 			encoding, encondingIsPresent := r.headers["accept-encoding"]
-			if encondingIsPresent && encoding == "gzip" {
-				response.SetHeader("Content-Encoding", encoding)
+			if encondingIsPresent && isAValidEnconding(strings.Split(encoding, ", ")) {
+				response.SetHeader("Content-Encoding", "gzip")
 			}
 			bodyContent := strings.Replace(r.path, "/echo/", "", 1)
 			bodyBytes := []byte(bodyContent)
