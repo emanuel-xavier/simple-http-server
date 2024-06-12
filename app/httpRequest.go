@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-type httpResquest struct {
+type httpRequest struct {
 	method      string
 	path        string
 	httpVersion string
@@ -31,53 +31,50 @@ func parseHeadLine(line []byte) (method, path, version string, err error) {
 	return
 }
 
-func parserHeader(line []byte) (key, value string, err error) {
+func parseHeader(line []byte) (key, value string, err error) {
 	parts := strings.SplitN(string(line), ":", 2)
 	if len(parts) != 2 {
 		err = fmt.Errorf("invalid header format")
 		return
 	}
-	return parts[0], parts[1], nil
+	return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]), nil
 }
 
-func ParseRequest(rBytes []byte) (*httpResquest, error) {
+func ParseRequest(rBytes []byte) (*httpRequest, error) {
 	lines := bytes.Split(rBytes, []byte(CRLF))
+	if len(lines) == 0 {
+		return nil, fmt.Errorf("empty request")
+	}
+
 	method, path, version, err := parseHeadLine(lines[0])
 	if err != nil {
 		return nil, err
 	}
 
-	request := httpResquest{
+	request := httpRequest{
 		method:      method,
 		path:        path,
 		httpVersion: version,
-		headers:     map[string]string{},
-		body:        make([]byte, 1024),
+		headers:     make(map[string]string),
 	}
 
-	var isParsingHeaders bool
-
-	for _, line := range lines[1:] {
-		switch {
-		case !isParsingHeaders && bytes.Contains(line, []byte(":")):
-			key, value, err := parserHeader(line)
-			if err != nil {
-				return nil, err
-			}
-
-			request.headers[strings.TrimSpace(key)] = strings.TrimSpace(value)
-
-		case bytes.Equal(line, []byte(CRLF)):
-			isParsingHeaders = true
-
-		default:
-			request.body = append(request.body, line...)
-			request.body = append(request.body, []byte(CRLF)...)
+	var i int
+	for i = 1; i < len(lines); i++ {
+		line := lines[i]
+		if len(line) == 0 {
+			break
 		}
+
+		key, value, err := parseHeader(line)
+		if err != nil {
+			return nil, err
+		}
+
+		request.headers[key] = value
 	}
 
-	if len(request.body) > 0 {
-		request.body = request.body[:len(request.body)-len([]byte(CRLF))]
+	if i < len(lines)-1 {
+		request.body = bytes.Join(lines[i+1:], []byte(CRLF))
 	}
 
 	return &request, nil

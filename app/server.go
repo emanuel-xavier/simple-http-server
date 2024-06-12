@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"strconv"
@@ -23,6 +22,8 @@ func main() {
 
 	flag.Parse()
 	fmt.Println("FILEPATH ", FILES_PATH)
+
+	os.MkdirAll(FILES_PATH, os.ModePerm)
 
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
@@ -44,41 +45,59 @@ func main() {
 func handleClient(conn net.Conn) {
 	defer conn.Close()
 
-	buffer := make([]byte, 1024)
-	_, err := conn.Read(buffer)
+	buffer := make([]byte, 4096)
+	n, err := conn.Read(buffer)
 	if err != nil {
 		fmt.Println("Error reading message: ", err.Error())
 	}
 
 	response := NewHttpResponse(HTTP_VERSION)
 
-	r, err := ParseRequest(buffer)
+	r, err := ParseRequest(buffer[:n])
 	if err != nil {
 		fmt.Println("Erro parsing request: ", err.Error())
 		response.SetStatus(STATUS_INTERNAL_ERROR)
 	} else {
 
-		fmt.Printf("path: %s\n", r.path)
+		fmt.Printf("%s %s\n", r.method, r.path)
 
 		switch {
 		case strings.Compare("/", r.path) == 0:
 			response.SetStatus(STATUS_OK)
 
-		case strings.HasPrefix(r.path, "/files/"):
+		case r.method == "POST" && strings.HasPrefix(r.path, "/files/"):
+			fileName, found := strings.CutPrefix(r.path, "/files/")
+			if !found {
+				response.SetStatus(STATUS_NOT_FOUND)
+			} else {
+				filePath := fmt.Sprintf("%s%s", FILES_PATH, fileName)
+
+				err := os.WriteFile(filePath, r.body, 0644)
+				if err != nil {
+					response.SetStatus(STATUS_INTERNAL_ERROR)
+					fmt.Println("Failed to write into file: ", err.Error())
+				}
+				response.SetStatus(STATUS_CREATED)
+				response.SetHeader("Content-Type", "text/plain")
+			}
+
+		case r.method == "GET" && strings.HasPrefix(r.path, "/files/"):
 			fileName, found := strings.CutPrefix(r.path, "/files/")
 			filePath := fmt.Sprintf("%s%s", FILES_PATH, fileName)
-			response.SetStatus(STATUS_NOT_FOUND)
-
-			if file, err := os.Open(filePath); err == nil && found {
-				fileContent, err := io.ReadAll(file)
-				if err == nil {
-					fmt.Println("body content:\n", string(fileContent))
+			if !found {
+				response.SetStatus(STATUS_NOT_FOUND)
+			} else {
+				fileContent, err := os.ReadFile(filePath)
+				if err != nil {
+					fmt.Println("Failed to read file: ", err.Error())
+					response.SetStatus(STATUS_NOT_FOUND)
+				} else {
+					contentLength := strconv.Itoa(len(fileContent))
 					response.SetStatus(STATUS_OK)
 					response.SetHeader("Content-Type", "application/octet-stream")
-					response.SetHeader("Content-Length", strconv.Itoa(len(fileContent)))
+					response.SetHeader("Content-Length", contentLength)
 					response.SetBody(fileContent)
 				}
-				file.Close()
 			}
 
 		case strings.Compare("/user-agent", r.path) == 0:
@@ -107,6 +126,9 @@ func handleClient(conn net.Conn) {
 
 	}
 
+	fmt.Println("-----------------------------")
+	fmt.Println(response.Parse())
+	fmt.Println("-----------------------------")
 	_, err = conn.Write([]byte(response.Parse()))
 	if err != nil {
 		fmt.Println("Error sending response: ", err.Error())

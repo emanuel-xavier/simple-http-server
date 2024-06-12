@@ -40,6 +40,8 @@ func (res *httpResponse) SetStatus(status int) {
 	switch status {
 	case 200:
 		res.statusMsg = "OK"
+	case 201:
+		res.statusMsg = "Created"
 	case 404:
 		res.statusMsg = "Not Found"
 	case 500:
