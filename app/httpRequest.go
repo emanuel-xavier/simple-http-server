@@ -37,6 +37,7 @@ func parseHeader(line []byte) (key, value string, err error) {
 		err = fmt.Errorf("invalid header format")
 		return
 	}
+	parts[0] = strings.ToLower(parts[0])
 	return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]), nil
 }
 

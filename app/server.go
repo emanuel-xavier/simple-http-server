@@ -62,7 +62,7 @@ func handleClient(conn net.Conn) {
 		fmt.Printf("%s %s\n", r.method, r.path)
 
 		switch {
-		case strings.Compare("/", r.path) == 0:
+		case r.method == "GET" && strings.Compare("/", r.path) == 0:
 			response.SetStatus(STATUS_OK)
 
 		case r.method == "POST" && strings.HasPrefix(r.path, "/files/"):
@@ -100,8 +100,8 @@ func handleClient(conn net.Conn) {
 				}
 			}
 
-		case strings.Compare("/user-agent", r.path) == 0:
-			userAgent, userAgentIsPresent := r.headers["User-Agent"]
+		case r.method == "GET" && strings.Compare("/user-agent", r.path) == 0:
+			userAgent, userAgentIsPresent := r.headers["user-agent"]
 			if userAgentIsPresent {
 				bodyBytes := []byte(userAgent)
 				response.SetStatus(STATUS_OK)
@@ -112,13 +112,17 @@ func handleClient(conn net.Conn) {
 				response.SetStatus(STATUS_BAD_REQUEST)
 			}
 
-		case strings.HasPrefix(r.path, "/echo/"):
+		case r.method == "GET" && strings.HasPrefix(r.path, "/echo/"):
+			encoding, encondingIsPresent := r.headers["accept-encoding"]
 			bodyContent := strings.Replace(r.path, "/echo/", "", 1)
 			bodyBytes := []byte(bodyContent)
 			response.SetStatus(STATUS_OK)
 			response.SetBody(bodyBytes)
 			response.SetHeader("Content-Length", strconv.Itoa(len(bodyBytes)))
 			response.SetHeader("Content-Type", "text/plain")
+			if encondingIsPresent {
+				response.SetHeader("Accept-Encoding", encoding)
+			}
 
 		default:
 			response.SetStatus(STATUS_NOT_FOUND)
