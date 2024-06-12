@@ -114,15 +114,15 @@ func handleClient(conn net.Conn) {
 
 		case r.method == "GET" && strings.HasPrefix(r.path, "/echo/"):
 			encoding, encondingIsPresent := r.headers["accept-encoding"]
+			if encondingIsPresent && encoding == "gzip" {
+				response.SetHeader("Content-Encoding", encoding)
+			}
 			bodyContent := strings.Replace(r.path, "/echo/", "", 1)
 			bodyBytes := []byte(bodyContent)
 			response.SetStatus(STATUS_OK)
 			response.SetBody(bodyBytes)
 			response.SetHeader("Content-Length", strconv.Itoa(len(bodyBytes)))
 			response.SetHeader("Content-Type", "text/plain")
-			if encondingIsPresent {
-				response.SetHeader("Accept-Encoding", encoding)
-			}
 
 		default:
 			response.SetStatus(STATUS_NOT_FOUND)
